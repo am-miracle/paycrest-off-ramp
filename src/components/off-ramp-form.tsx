@@ -41,6 +41,7 @@ export default function OffRampForm({ userAddress, onTransaction }: OffRampFormP
   const [isAccountValid, setIsAccountValid] = useState<boolean | null>(null);
   const [loading, setLoading] = useState(false);
   const [loadingInstitutions, setLoadingInstitutions] = useState(false);
+  const [nairaRate, setNairaRate] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   // Fetch institutions
@@ -57,6 +58,15 @@ export default function OffRampForm({ userAddress, onTransaction }: OffRampFormP
       }
     };
     loadInstitutions();
+  }, []);
+
+  // Fetch Naira Rate
+  useEffect(() => {
+    const loadNairaRate = async () => {
+      const rate = await fetchNairaRate();
+      setNairaRate(rate);
+    };
+    loadNairaRate();
   }, []);
 
   // Fetch USDT balance
@@ -132,6 +142,11 @@ export default function OffRampForm({ userAddress, onTransaction }: OffRampFormP
       setLoading(false);
       return;
     }
+    if (nairaRate === null) {
+      setError("Exchange rate not available.");
+      setLoading(false);
+      return;
+    }
 
     try {
       const provider = new ethers.BrowserProvider((window as any).ethereum);
@@ -141,8 +156,6 @@ export default function OffRampForm({ userAddress, onTransaction }: OffRampFormP
       const usdtAsset = new Contract(usdtContract.address, usdtContract.abi, signer);
       const gateway = new Contract(gatewayContract.address, gatewayContract.abi, signer);
 
-      // Fetch rate
-      const nairaRate = await fetchNairaRate();
 
       // Encrypt recipient details
       const recipient = {
@@ -163,14 +176,15 @@ export default function OffRampForm({ userAddress, onTransaction }: OffRampFormP
 
       // Create order
       const createOrderTx = await gateway.createOrder(
-        usdtContract.address,
-        usdtAmount,
-        Math.floor(nairaRate),
-        ethers.ZeroAddress,
-        0,
-        userAddress,
-        messageHash
+        usdtContract.address, // USDT contract
+        usdtAmount, // Amount in wei
+        Math.floor(nairaRate), // Exchange rate
+        ethers.ZeroAddress, // No fee recipient
+        0, // No sender fee
+        userAddress, // Refund address
+        messageHash // Encrypted bank details
       );
+
       const receipt = await createOrderTx.wait();
       onTransaction("Order Created", receipt);
     } catch (err: any) {
@@ -187,6 +201,12 @@ export default function OffRampForm({ userAddress, onTransaction }: OffRampFormP
         <Label>USDT Balance</Label>
         <p className="text-sm text-gray-600">
           {balance !== null ? `${balance.toFixed(2)} USDT` : "Fetching balance..."}
+        </p>
+      </div>
+      <div>
+        <Label>Naria Rate</Label>
+        <p className="text-sm text-gray-600">
+            {nairaRate}
         </p>
       </div>
       <div>
